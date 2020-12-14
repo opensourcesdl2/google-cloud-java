@@ -13,42 +13,37 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.google.cloud.examples.storage.objects;
+package com.google.cloud.examples.storage.buckets;
 
-// [START storage_download_file]
-import com.google.cloud.storage.Blob;
-import com.google.cloud.storage.BlobId;
+// [START storage_remove_cors_configuration]
+import com.google.cloud.storage.Bucket;
+import com.google.cloud.storage.Cors;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
-import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 
-public class DownloadObject {
-  public static void downloadObject(
-      String projectId, String bucketName, String objectName, String destFilePath) {
+public class RemoveBucketCors {
+  public static void removeBucketCors(String projectId, String bucketName) {
     // The ID of your GCP project
     // String projectId = "your-project-id";
 
     // The ID of your GCS bucket
     // String bucketName = "your-unique-bucket-name";
 
-    // The ID of your GCS object
-    // String objectName = "your-object-name";
-
-    // The path to which the file should be downloaded
-    // String destFilePath = "/local/path/to/file.txt";
-
     Storage storage = StorageOptions.newBuilder().setProjectId(projectId).build().getService();
+    Bucket bucket =
+        storage.get(bucketName, Storage.BucketGetOption.fields(Storage.BucketField.CORS));
 
-    Blob blob = storage.get(BlobId.of(bucketName, objectName));
-    blob.downloadTo(Paths.get(destFilePath));
+    // getCors() returns the List and copying over to an ArrayList so it's mutable.
+    List<Cors> cors = new ArrayList<>(bucket.getCors());
 
-    System.out.println(
-        "Downloaded object "
-            + objectName
-            + " from bucket name "
-            + bucketName
-            + " to "
-            + destFilePath);
+    // Clear bucket CORS configuration.
+    cors.clear();
+
+    // Update bucket to remove CORS.
+    bucket.toBuilder().setCors(cors).build().update();
+    System.out.println("Removed CORS configuration from bucket " + bucketName);
   }
 }
-// [END storage_download_file]
+// [END storage_remove_cors_configuration]

@@ -13,42 +13,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.google.cloud.examples.storage.objects;
+package com.google.cloud.examples.storage.buckets;
 
-// [START storage_download_file]
-import com.google.cloud.storage.Blob;
-import com.google.cloud.storage.BlobId;
+// [START storage_disable_bucket_lifecycle_management]
+import com.google.cloud.storage.Bucket;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
-import java.nio.file.Paths;
 
-public class DownloadObject {
-  public static void downloadObject(
-      String projectId, String bucketName, String objectName, String destFilePath) {
+public class DisableLifecycleManagement {
+  public static void disableLifecycleManagement(String projectId, String bucketName) {
     // The ID of your GCP project
     // String projectId = "your-project-id";
 
     // The ID of your GCS bucket
     // String bucketName = "your-unique-bucket-name";
 
-    // The ID of your GCS object
-    // String objectName = "your-object-name";
-
-    // The path to which the file should be downloaded
-    // String destFilePath = "/local/path/to/file.txt";
-
     Storage storage = StorageOptions.newBuilder().setProjectId(projectId).build().getService();
+    Bucket bucket = storage.get(bucketName);
+    bucket.toBuilder().deleteLifecycleRules().build().update();
 
-    Blob blob = storage.get(BlobId.of(bucketName, objectName));
-    blob.downloadTo(Paths.get(destFilePath));
-
-    System.out.println(
-        "Downloaded object "
-            + objectName
-            + " from bucket name "
-            + bucketName
-            + " to "
-            + destFilePath);
+    System.out.println("Lifecycle management was disabled for bucket " + bucketName);
   }
 }
-// [END storage_download_file]
+// [END storage_disable_bucket_lifecycle_management]

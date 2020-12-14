@@ -26,6 +26,7 @@ import static org.junit.Assert.assertTrue;
 
 import com.google.cloud.examples.storage.objects.ChangeObjectCSEKtoKMS;
 import com.google.cloud.examples.storage.objects.ChangeObjectStorageClass;
+import com.google.cloud.examples.storage.objects.ComposeObject;
 import com.google.cloud.examples.storage.objects.CopyObject;
 import com.google.cloud.examples.storage.objects.CopyOldVersionOfObject;
 import com.google.cloud.examples.storage.objects.DeleteObject;
@@ -98,6 +99,7 @@ public class ITBlobSnippets {
     RemoteStorageHelper helper = RemoteStorageHelper.create();
     storage = helper.getOptions().getService();
     storage.create(BucketInfo.of(BUCKET));
+    storage.create(BlobInfo.newBuilder(BUCKET, BLOB).build(), CONTENT);
   }
 
   @AfterClass
@@ -152,7 +154,7 @@ public class ITBlobSnippets {
   public void testDownloadObject() throws IOException {
     File tempFile = File.createTempFile("file", ".txt");
     try {
-      DownloadObject.downloadObject(PROJECT_ID, BUCKET, BLOB, tempFile.toPath());
+      DownloadObject.downloadObject(PROJECT_ID, BUCKET, BLOB, tempFile.getPath());
       assertEquals("Hello, World!", new String(Files.readAllBytes(tempFile.toPath())));
     } finally {
       tempFile.delete();
@@ -195,6 +197,7 @@ public class ITBlobSnippets {
     assertTrue(snippetOutput.contains("ContentEncoding: " + remoteBlob.getContentEncoding()));
     assertTrue(snippetOutput.contains("ContentLanguage: " + remoteBlob.getContentLanguage()));
     assertTrue(snippetOutput.contains("ContentType: " + remoteBlob.getContentType()));
+    assertTrue(snippetOutput.contains("CustomTime: " + remoteBlob.getCustomTime()));
     assertTrue(snippetOutput.contains("Crc32c: " + remoteBlob.getCrc32c()));
     assertTrue(snippetOutput.contains("Crc32cHexString: " + remoteBlob.getCrc32cToHexString()));
     assertTrue(snippetOutput.contains("ETag: " + remoteBlob.getEtag()));
@@ -246,16 +249,18 @@ public class ITBlobSnippets {
   @Test
   public void testMoveObject() {
     String blob = "movethisblob";
+    String newBlob = "movedthisblob";
+
     storage.create(BlobInfo.newBuilder(BlobId.of(BUCKET, blob)).build());
     assertNotNull(storage.get(BUCKET, blob));
     String newBucket = RemoteStorageHelper.generateBucketName();
     storage.create(BucketInfo.newBuilder(newBucket).build());
     try {
-      MoveObject.moveObject(PROJECT_ID, BUCKET, blob, newBucket);
-      assertNotNull(storage.get(newBucket, blob));
+      MoveObject.moveObject(PROJECT_ID, BUCKET, blob, newBucket, newBlob);
+      assertNotNull(storage.get(newBucket, newBlob));
       assertNull(storage.get(BUCKET, blob));
     } finally {
-      storage.delete(newBucket, blob);
+      storage.delete(newBucket, newBlob);
       storage.delete(newBucket);
     }
   }
@@ -386,5 +391,20 @@ public class ITBlobSnippets {
         storage.create(BlobInfo.newBuilder(BUCKET, aclBlob).build()).getAcl(Acl.User.ofAllUsers()));
     MakeObjectPublic.makeObjectPublic(PROJECT_ID, BUCKET, aclBlob);
     assertNotNull(storage.get(BUCKET, aclBlob).getAcl(Acl.User.ofAllUsers()));
+  }
+
+  @Test
+  public void testComposeObject() {
+    String firstObject = "firstObject";
+    String secondObject = "secondObject";
+    String targetObject = "targetObject";
+    storage.create(BlobInfo.newBuilder(BUCKET, firstObject).build(), firstObject.getBytes(UTF_8));
+    storage.create(BlobInfo.newBuilder(BUCKET, secondObject).build(), secondObject.getBytes(UTF_8));
+
+    ComposeObject.composeObject(BUCKET, firstObject, secondObject, targetObject, PROJECT_ID);
+
+    System.out.println(new String(storage.get(BUCKET, targetObject).getContent()));
+    assertArrayEquals(
+        "firstObjectsecondObject".getBytes(UTF_8), storage.get(BUCKET, targetObject).getContent());
   }
 }

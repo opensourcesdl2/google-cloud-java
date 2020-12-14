@@ -21,6 +21,7 @@ import static org.junit.Assert.assertFalse;
 
 import com.google.cloud.Identity;
 import com.google.cloud.ServiceOptions;
+import com.google.cloud.examples.storage.buckets.AddBucketIamConditionalBinding;
 import com.google.cloud.examples.storage.buckets.AddBucketIamMember;
 import com.google.cloud.examples.storage.buckets.AddBucketLabel;
 import com.google.cloud.examples.storage.buckets.ChangeDefaultStorageClass;
@@ -28,6 +29,7 @@ import com.google.cloud.examples.storage.buckets.ConfigureBucketCors;
 import com.google.cloud.examples.storage.buckets.CreateBucketWithStorageClassAndLocation;
 import com.google.cloud.examples.storage.buckets.DeleteBucket;
 import com.google.cloud.examples.storage.buckets.DisableBucketVersioning;
+import com.google.cloud.examples.storage.buckets.DisableLifecycleManagement;
 import com.google.cloud.examples.storage.buckets.DisableRequesterPays;
 import com.google.cloud.examples.storage.buckets.EnableBucketVersioning;
 import com.google.cloud.examples.storage.buckets.EnableLifecycleManagement;
@@ -36,7 +38,9 @@ import com.google.cloud.examples.storage.buckets.GetBucketMetadata;
 import com.google.cloud.examples.storage.buckets.ListBucketIamMembers;
 import com.google.cloud.examples.storage.buckets.ListBuckets;
 import com.google.cloud.examples.storage.buckets.MakeBucketPublic;
+import com.google.cloud.examples.storage.buckets.RemoveBucketCors;
 import com.google.cloud.examples.storage.buckets.RemoveBucketDefaultKMSKey;
+import com.google.cloud.examples.storage.buckets.RemoveBucketIamConditionalBinding;
 import com.google.cloud.examples.storage.buckets.RemoveBucketIamMember;
 import com.google.cloud.examples.storage.buckets.RemoveBucketLabel;
 import com.google.cloud.examples.storage.buckets.SetBucketWebsiteInfo;
@@ -47,6 +51,7 @@ import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.Bucket;
 import com.google.cloud.storage.BucketInfo;
 import com.google.cloud.storage.Cors;
+import com.google.cloud.storage.HttpMethod;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageRoles;
@@ -270,10 +275,34 @@ public class ITBucketSnippets {
   }
 
   @Test
+  public void testDisableLifecycleManagement() {
+    storage
+        .get(BUCKET)
+        .toBuilder()
+        .setLifecycleRules(
+            ImmutableList.of(
+                new BucketInfo.LifecycleRule(
+                    BucketInfo.LifecycleRule.LifecycleAction.newDeleteAction(),
+                    BucketInfo.LifecycleRule.LifecycleCondition.newBuilder().setAge(5).build())))
+        .build()
+        .update();
+    assertEquals(1, storage.get(BUCKET).getLifecycleRules().size());
+    DisableLifecycleManagement.disableLifecycleManagement(PROJECT_ID, BUCKET);
+    assertEquals(0, storage.get(BUCKET).getLifecycleRules().size());
+  }
+
+  @Test
   public void testAddListRemoveBucketIamMembers() {
-    int originalSize = storage.getIamPolicy(BUCKET).getBindings().size();
+    storage.update(
+        BucketInfo.newBuilder(BUCKET)
+            .setIamConfiguration(
+                BucketInfo.IamConfiguration.newBuilder()
+                    .setIsUniformBucketLevelAccessEnabled(true)
+                    .build())
+            .build());
+    int originalSize = storage.getIamPolicy(BUCKET).getBindingsList().size();
     AddBucketIamMember.addBucketIamMember(PROJECT_ID, BUCKET);
-    assertEquals(originalSize + 1, storage.getIamPolicy(BUCKET).getBindings().size());
+    assertEquals(originalSize + 1, storage.getIamPolicy(BUCKET).getBindingsList().size());
     PrintStream standardOut = System.out;
     final ByteArrayOutputStream snippetOutputCapture = new ByteArrayOutputStream();
     System.setOut(new PrintStream(snippetOutputCapture));
@@ -282,7 +311,18 @@ public class ITBucketSnippets {
     System.setOut(standardOut);
     assertTrue(snippetOutput.contains("example@google.com"));
     RemoveBucketIamMember.removeBucketIamMember(PROJECT_ID, BUCKET);
-    assertEquals(originalSize, storage.getIamPolicy(BUCKET).getBindings().size());
+    assertEquals(originalSize, storage.getIamPolicy(BUCKET).getBindingsList().size());
+    AddBucketIamConditionalBinding.addBucketIamConditionalBinding(PROJECT_ID, BUCKET);
+    assertEquals(originalSize + 1, storage.getIamPolicy(BUCKET).getBindingsList().size());
+    RemoveBucketIamConditionalBinding.removeBucketIamConditionalBinding(PROJECT_ID, BUCKET);
+    assertEquals(originalSize, storage.getIamPolicy(BUCKET).getBindingsList().size());
+    storage.update(
+        BucketInfo.newBuilder(BUCKET)
+            .setIamConfiguration(
+                BucketInfo.IamConfiguration.newBuilder()
+                    .setIsUniformBucketLevelAccessEnabled(false)
+                    .build())
+            .build());
   }
 
   @Test
@@ -336,6 +376,31 @@ public class ITBucketSnippets {
     assertTrue(cors.getResponseHeaders().contains("Content-Type"));
     assertEquals(3600, cors.getMaxAgeSeconds().intValue());
     assertTrue(cors.getMethods().get(0).toString().equalsIgnoreCase("GET"));
+  }
+
+  @Test
+  public void testRemoveBucketCors() {
+    storage
+        .get(BUCKET)
+        .toBuilder()
+        .setCors(
+            ImmutableList.of(
+                Cors.newBuilder()
+                    .setOrigins(ImmutableList.of(Cors.Origin.of("http://example.appspot.com")))
+                    .setMethods(ImmutableList.of(HttpMethod.GET))
+                    .setResponseHeaders(ImmutableList.of("Content-Type"))
+                    .setMaxAgeSeconds(3600)
+                    .build()))
+        .build()
+        .update();
+    Cors cors = storage.get(BUCKET).getCors().get(0);
+    assertNotNull(cors);
+    assertTrue(cors.getOrigins().get(0).toString().contains("example.appspot.com"));
+    assertTrue(cors.getResponseHeaders().contains("Content-Type"));
+    assertEquals(3600, cors.getMaxAgeSeconds().intValue());
+    assertTrue(cors.getMethods().get(0).toString().equalsIgnoreCase("GET"));
+    RemoveBucketCors.removeBucketCors(PROJECT_ID, BUCKET);
+    assertNull(storage.get(BUCKET).getCors());
   }
 
   @Test
